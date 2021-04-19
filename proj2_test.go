@@ -42,6 +42,23 @@ func TestInit(t *testing.T) {
 	// write _ = u here to make the compiler happy
 	// You probably want many more tests here.
 }
+//TEST USER RETRIEVAL
+func TestGet(t *testing.T) {
+	clear()
+	t.Log("Get user test")
+	u, err := InitUser("alice", "fubar")
+	if err != nil {
+		// t.Error says the test fails
+		t.Error("Failed to initialize user", err)
+		return
+	}
+	result, err := GetUser("alice", "fubar")
+	if err != nil {
+		t.Error("Failed to retrieve user", err)
+	}
+	_ = u
+	_ = result
+}
 
 func TestStorage(t *testing.T) {
 	clear()

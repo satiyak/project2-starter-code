@@ -93,7 +93,11 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	//TODO: This is a toy implementation.
 	userdata.Username = username
 	//End of toy implementation
-
+	resUUID := bytesToUUID(userlib.Hash([]byte(username + password))[:16])
+	//userlib.DebugMsg("TEST: %v", resUUID.String())
+	bytes, _ := json.Marshal(userdata)
+	//ENCRYPT USER DATA BEFORE SENDING TO STORE
+	userlib.DatastoreSet(resUUID, bytes)
 	return &userdata, nil
 }
 
@@ -101,9 +105,14 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 // https://cs161.org/assets/projects/2/docs/client_api/getuser.html
 func GetUser(username string, password string) (userdataptr *User, err error) {
 	var userdata User
+	resUUID := bytesToUUID(userlib.Hash([]byte(username + password))[:16])
+	getRes, _ := userlib.DatastoreGet(resUUID)
+	if getRes == nil {
+		err = errors.New("Username or password incorrect!")
+	}
+	json.Unmarshal(getRes, &userdata)
 	userdataptr = &userdata
-
-	return userdataptr, nil
+	return userdataptr, err
 }
 
 // StoreFile is documented at:
@@ -128,32 +137,69 @@ func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 // LoadFile is documented at:
 // https://cs161.org/assets/projects/2/docs/client_api/loadfile.html
 func (userdata *User) LoadFile(filename string) (dataBytes []byte, err error) {
-
-	//TODO: This is a toy implementation.
 	storageKey, _ := uuid.FromBytes([]byte(filename + userdata.Username)[:16])
 	dataJSON, ok := userlib.DatastoreGet(storageKey)
 	if !ok {
 		return nil, errors.New(strings.ToTitle("File not found!"))
 	}
 	json.Unmarshal(dataJSON, &dataBytes)
-	return dataBytes, nil
-	//End of toy implementation
+	// TODO: CHECK MAC OF FILE TO FIGHT TAMPERING
 
-	return
+	// IF FILE IS SHARED, CHANGE POINTER TO SHARED FILE
+	if ((string(dataBytes)[:5]) == "share") {
+		storageKey, _ = uuid.ParseBytes(dataBytes[5:])
+		dataJSON, ok := userlib.DatastoreGet(storageKey)
+		json.Unmarshal(dataJSON, &dataBytes)
+		_ = dataJSON
+		_ = ok
+	}
+	return dataBytes, nil
 }
 
 // ShareFile is documented at:
 // https://cs161.org/assets/projects/2/docs/client_api/sharefile.html
 func (userdata *User) ShareFile(filename string, recipient string) (
 	accessToken uuid.UUID, err error) {
+	
+	// Retrieve UUID of requested file
+	accessToken, _ = uuid.FromBytes([]byte(filename + userdata.Username)[:16])
+	userlib.DebugMsg("OG TOKEN")
+	userlib.DebugMsg(accessToken.String())
 
-	return
+	return accessToken, nil
 }
 
 // ReceiveFile is documented at:
 // https://cs161.org/assets/projects/2/docs/client_api/receivefile.html
 func (userdata *User) ReceiveFile(filename string, sender string,
 	accessToken uuid.UUID) error {
+	/*var dataBytes []byte
+	dataJSON, ok := userlib.DatastoreGet(accessToken)
+	if !ok {
+		return errors.New(strings.ToTitle("File not found!"))
+	}
+	json.Unmarshal(dataJSON, &dataBytes)
+	*/
+	//userlib.DebugMsg(accessToken.String())
+	storageKey, _ := uuid.FromBytes([]byte(filename + userdata.Username)[:16])
+	//userlib.DebugMsg("RECEIVED")
+	//userlib.DebugMsg(storageKey.String())
+	//testArr := []byte(accessToken)
+	//d, _ := json.Marshal(accessToken)
+	//uid := uuid.New()
+	uid := []byte("share" + accessToken.String())
+	d, _ := json.Marshal(uid)
+	
+	var result uuid.UUID
+	err := json.Unmarshal(d, &result)
+	//userlib.DebugMsg("CHECK")
+	//userlib.DebugMsg(result.String())
+	_ = err
+	
+	
+	//jsonData, _ := json.Marshal(testArr)
+	userlib.DatastoreSet(storageKey, d)
+
 	return nil
 }
 
