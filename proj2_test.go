@@ -82,6 +82,35 @@ func TestStorage(t *testing.T) {
 	}
 }
 
+func TestAppend(t *testing.T) {
+	clear()
+	u, err := InitUser("alice", "fubar")
+	if err != nil {
+		t.Error("Failed to initialize user", err)
+		return
+	}
+	//userlib.DatastoreResetBandwidth()
+	v := []byte("This is a test")
+	u.StoreFile("file1", v)
+	//t.Log("VIBE")
+	//t.Log(userlib.DatastoreGetBandwidth())
+	//userlib.DatastoreResetBandwidth()
+	
+	u.AppendFile("file1", []byte(" with the append!"))
+	//t.Log("CHECK")
+	//t.Log(userlib.DatastoreGetBandwidth())
+	v3 := []byte("This is a test with the append!")
+	v2, err2 := u.LoadFile("file1")
+	if err2 != nil {
+		t.Error("Failed to upload and download", err2)
+		return
+	}
+	if !reflect.DeepEqual(v2, v3) {
+		t.Error("Downloaded file is not the same", v2, v3)
+		return
+	}
+}
+
 func TestInvalidFile(t *testing.T) {
 	clear()
 	u, err := InitUser("alice", "fubar")

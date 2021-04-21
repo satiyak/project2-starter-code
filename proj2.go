@@ -27,7 +27,7 @@ import (
 
 	// Optional. You can remove the "_" there, but please do not touch
 	// anything else within the import bracket.
-	_ "strconv"
+	"strconv"
 	// if you are looking for fmt, we don't give you fmt, but you can use userlib.DebugMsg.
 	// see someUsefulThings() below:
 )
@@ -79,7 +79,9 @@ func bytesToUUID(data []byte) (ret uuid.UUID) {
 // User is the structure definition for a user record.
 type User struct {
 	Username string
-
+	Salt []byte
+	PKey userlib.PKEDecKey
+	AppendMap map[string]int
 	// You can add other fields here if you want...
 	// Note for JSON to marshal/unmarshal, the fields need to
 	// be public (start with a capital letter)
@@ -90,9 +92,17 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	var userdata User
 	userdataptr = &userdata
 
-	//TODO: This is a toy implementation.
+	// Assign all struct properties
 	userdata.Username = username
-	//End of toy implementation
+	userdata.Salt = userlib.RandomBytes(20)
+	pubKey, privKey, err := userlib.PKEKeyGen()
+	userdata.PKey = privKey
+	userdata.AppendMap = make(map[string]int)
+	// Send public key to Keystore
+	_= pubKey
+	userlib.KeystoreSet(username, pubKey)
+
+	// Create UUID to store in Datastore
 	resUUID := bytesToUUID(userlib.Hash([]byte(username + password))[:16])
 	//userlib.DebugMsg("TEST: %v", resUUID.String())
 	bytes, _ := json.Marshal(userdata)
@@ -131,6 +141,23 @@ func (userdata *User) StoreFile(filename string, data []byte) (err error) {
 // AppendFile is documented at:
 // https://cs161.org/assets/projects/2/docs/client_api/appendfile.html
 func (userdata *User) AppendFile(filename string, data []byte) (err error) {
+	//dataBytes, err := userdata.LoadFile(filename)
+	m := userdata.AppendMap
+	result := m[filename]
+	if (result == 0) {
+		m[filename] = 1
+	} else {
+		m[filename] = m[filename] + 1
+	}
+	userlib.DebugMsg(strconv.Itoa(m[filename]))
+	userlib.DebugMsg("DB CHECK")
+	//userlib.DebugMsg(string(dataBytes))
+	//for i := 0; i < len(data); i++ {
+	//	dataBytes = append(dataBytes, data[i])
+	//}
+	newFilename := filename + "_" + strconv.Itoa(m[filename])
+	//userlib.DebugMsg(newFilename)
+	userdata.StoreFile(newFilename, data)
 	return
 }
 
@@ -139,10 +166,25 @@ func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 func (userdata *User) LoadFile(filename string) (dataBytes []byte, err error) {
 	storageKey, _ := uuid.FromBytes([]byte(filename + userdata.Username)[:16])
 	dataJSON, ok := userlib.DatastoreGet(storageKey)
+	appendNum := userdata.AppendMap[filename]
+	
 	if !ok {
 		return nil, errors.New(strings.ToTitle("File not found!"))
 	}
 	json.Unmarshal(dataJSON, &dataBytes)
+	if (appendNum != 0) {
+		//userlib.DebugMsg("append case")
+		for i := 0; i < appendNum; i++ {
+			storageKey, _ := uuid.FromBytes([]byte(filename + "_" + strconv.Itoa(i + 1) + userdata.Username)[:16])
+			dataJSON, ok := userlib.DatastoreGet(storageKey)
+			_ = ok
+			var newDataBytes []byte
+			json.Unmarshal(dataJSON, &newDataBytes)
+			//userlib.DebugMsg("APPEND CHECK")
+			//userlib.DebugMsg(string(newDataBytes))
+			dataBytes = append(dataBytes, newDataBytes...)
+		}
+	}
 	// TODO: CHECK MAC OF FILE TO FIGHT TAMPERING
 
 	// IF FILE IS SHARED, CHANGE POINTER TO SHARED FILE
@@ -163,9 +205,6 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 	
 	// Retrieve UUID of requested file
 	accessToken, _ = uuid.FromBytes([]byte(filename + userdata.Username)[:16])
-	userlib.DebugMsg("OG TOKEN")
-	userlib.DebugMsg(accessToken.String())
-
 	return accessToken, nil
 }
 
