@@ -159,7 +159,21 @@ func (userdata *User) StoreFile(filename string, data []byte) (err error) {
 // AppendFile is documented at:
 // https://cs161.org/assets/projects/2/docs/client_api/appendfile.html
 func (userdata *User) AppendFile(filename string, data []byte) (err error) {
-	dataBytes, err := userdata.LoadFile(filename)
+	storageKey, _ := uuid.FromBytes([]byte(filename + userdata.Username)[:16])
+	var storageKey2 uuid.UUID
+	var dataBytes []byte
+	dataJSON, ok := userlib.DatastoreGet(storageKey)
+	_ = ok
+	json.Unmarshal(dataJSON, &dataBytes)
+	if (len(dataBytes) > 5 && (string(dataBytes)[:5]) == "share") {
+		userlib.DebugMsg("INSIDE")
+		storageKey2, _ = uuid.ParseBytes(dataBytes[5:])
+		dataJSON, ok := userlib.DatastoreGet(storageKey2)
+		json.Unmarshal(dataJSON, &dataBytes)
+		_ = dataJSON
+		_ = ok
+	}
+	//dataBytes, err := userdata.LoadFile(filename)
 	//m := userdata.AppendMap
 	//result := m[filename]
 	//if (result == 0) {
@@ -176,6 +190,9 @@ func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 	//newFilename := filename + "_" + strconv.Itoa(m[filename])
 	//userlib.DebugMsg(newFilename)
 	userdata.StoreFile(filename, dataBytes)
+	userlib.DebugMsg(string(dataBytes))
+	jsonData, _ := json.Marshal(dataBytes)
+	userlib.DatastoreSet(storageKey2, jsonData)
 	return
 }
 

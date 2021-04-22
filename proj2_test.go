@@ -111,6 +111,27 @@ func TestAppend(t *testing.T) {
 	}
 }
 
+
+func TestPUBLICShare(t *testing.T) {
+	clear()
+	file1data := "File 1 data woohoo"
+	otherAppend := " Other append to file"
+	finalStr := []byte("File 1 data woohoo Other append to file")
+	u, err := InitUser("nick", "weaver")
+	u2, err := InitUser("paul", "legler")
+
+	u.StoreFile("file1", []byte(file1data))
+	token, err := u.ShareFile("file1", "paul")
+	u2.ReceiveFile("file2", "nick", token)
+	_ = err
+
+	u2.AppendFile("file2", []byte(otherAppend))
+	ogLoad, err := u.LoadFile("file1")
+	if !reflect.DeepEqual(ogLoad, finalStr) {
+		t.Error("original owner does not see update:", string(ogLoad), string(finalStr))
+	}
+
+}
 func TestInvalidFile(t *testing.T) {
 	clear()
 	u, err := InitUser("alice", "fubar")
