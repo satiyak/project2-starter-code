@@ -79,7 +79,7 @@ func bytesToUUID(data []byte) (ret uuid.UUID) {
 // User is the structure definition for a user record.
 type User struct {
 	Username string
-	Salt []byte
+	SymSalt []byte
 	PKey userlib.PKEDecKey
 	AppendMap map[string]int
 	// You can add other fields here if you want...
@@ -94,7 +94,7 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 
 	// Assign all struct properties
 	userdata.Username = username
-	userdata.Salt = userlib.RandomBytes(20)
+	userdata.SymSalt = userlib.RandomBytes(16)
 	pubKey, privKey, err := userlib.PKEKeyGen()
 	userdata.PKey = privKey
 	userdata.AppendMap = make(map[string]int)
@@ -106,7 +106,25 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	resUUID := bytesToUUID(userlib.Hash([]byte(username + password))[:16])
 	//userlib.DebugMsg("TEST: %v", resUUID.String())
 	bytes, _ := json.Marshal(userdata)
+	/*
+	encSalt := userlib.RandomBytes(16)
+
 	//ENCRYPT USER DATA BEFORE SENDING TO STORE
+	dataEncPass := userlib.Argon2Key([]byte(password), encSalt, 16)
+	// Generate IV for encryption
+	padNeeded := 16 - (len(bytes) % 16)
+	encIV := userlib.RandomBytes(16)
+	userlib.DebugMsg("BEFORE")
+	userlib.DebugMsg(string(bytes))
+	for i := 0; i < padNeeded; i++ {
+		bytes = append(bytes, byte(padNeeded))
+	}
+	userlib.DebugMsg("AFTER")
+	userlib.DebugMsg(string(bytes))
+	_ = encIV
+	_ = dataEncPass
+	bytes = userlib.SymEnc(dataEncPass, encIV, bytes)
+	*/
 	userlib.DatastoreSet(resUUID, bytes)
 	return &userdata, nil
 }
@@ -141,23 +159,23 @@ func (userdata *User) StoreFile(filename string, data []byte) (err error) {
 // AppendFile is documented at:
 // https://cs161.org/assets/projects/2/docs/client_api/appendfile.html
 func (userdata *User) AppendFile(filename string, data []byte) (err error) {
-	//dataBytes, err := userdata.LoadFile(filename)
-	m := userdata.AppendMap
-	result := m[filename]
-	if (result == 0) {
-		m[filename] = 1
-	} else {
-		m[filename] = m[filename] + 1
-	}
-	userlib.DebugMsg(strconv.Itoa(m[filename]))
-	userlib.DebugMsg("DB CHECK")
-	//userlib.DebugMsg(string(dataBytes))
-	//for i := 0; i < len(data); i++ {
-	//	dataBytes = append(dataBytes, data[i])
+	dataBytes, err := userdata.LoadFile(filename)
+	//m := userdata.AppendMap
+	//result := m[filename]
+	//if (result == 0) {
+	//	m[filename] = 1
+	//} else {
+	//	m[filename] = m[filename] + 1
 	//}
-	newFilename := filename + "_" + strconv.Itoa(m[filename])
+	//userlib.DebugMsg(strconv.Itoa(m[filename]))
+	//userlib.DebugMsg("DB CHECK")
+	//userlib.DebugMsg(string(dataBytes))
+	for i := 0; i < len(data); i++ {
+		dataBytes = append(dataBytes, data[i])
+	}
+	//newFilename := filename + "_" + strconv.Itoa(m[filename])
 	//userlib.DebugMsg(newFilename)
-	userdata.StoreFile(newFilename, data)
+	userdata.StoreFile(filename, dataBytes)
 	return
 }
 
@@ -180,8 +198,6 @@ func (userdata *User) LoadFile(filename string) (dataBytes []byte, err error) {
 			_ = ok
 			var newDataBytes []byte
 			json.Unmarshal(dataJSON, &newDataBytes)
-			//userlib.DebugMsg("APPEND CHECK")
-			//userlib.DebugMsg(string(newDataBytes))
 			dataBytes = append(dataBytes, newDataBytes...)
 		}
 	}
