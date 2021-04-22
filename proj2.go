@@ -188,7 +188,7 @@ func (userdata *User) LoadFile(filename string) (dataBytes []byte, err error) {
 	// TODO: CHECK MAC OF FILE TO FIGHT TAMPERING
 
 	// IF FILE IS SHARED, CHANGE POINTER TO SHARED FILE
-	if ((string(dataBytes)[:5]) == "share") {
+	if (len(dataBytes) > 5 && (string(dataBytes)[:5]) == "share") {
 		storageKey, _ = uuid.ParseBytes(dataBytes[5:])
 		dataJSON, ok := userlib.DatastoreGet(storageKey)
 		json.Unmarshal(dataJSON, &dataBytes)
